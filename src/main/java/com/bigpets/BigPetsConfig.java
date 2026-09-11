@@ -1,30 +1,30 @@
-package com.petresizer;
+package com.bigpets;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.Range;
 
-@ConfigGroup(PetResizerConfig.GROUP)
-public interface PetResizerConfig extends Config
+@ConfigGroup(BigPetsConfig.GROUP)
+public interface BigPetsConfig extends Config
 {
-	String GROUP = "pet-resizer";
+	String GROUP = "big-pets";
 
 	@Range(min = 0, max = 500)
 	@ConfigItem(
 		keyName = "petSizePercentage",
 		name = "Pet size (%)",
-		description = "Visual size: 100 is normal, 0 hides the pet. Keeps the original clickbox. Requires RuneLite GPU."
+		description = "Visual size: 100 is normal, 0 hides the pet. The original clickbox is intact."
 	)
 	default int petSizePercentage()
 	{
-		return 100;
+		return 300;
 	}
 
 	@ConfigItem(
 		keyName = "resizeAllPets",
 		name = "Resize all pets",
-		description = "Apply the pet size to other players' followers and POH pets as well as your own follower.",
+		description = "Resize other player's pets and POH pets",
 		position = 1
 	)
 	default boolean resizeAllPets()
@@ -35,7 +35,7 @@ public interface PetResizerConfig extends Config
 	@ConfigItem(
 		keyName = "filterCatsAndDogs",
 		name = "Filter cats and dogs",
-		description = "Keep cats, kittens, hellcats, clockwork cats, dogs and puppies at their normal size.",
+		description = "Keep cats and dogs at their normal size.",
 		position = 2
 	)
 	default boolean filterCatsAndDogs()
@@ -46,7 +46,7 @@ public interface PetResizerConfig extends Config
 	@ConfigItem(
 		keyName = "filterQuestAndEventPets",
 		name = "Filter quest and Event pets",
-		description = "Keep quest and event pets at normal size, including rocks, eggs, fish and the spooky chair. Broav is never filtered.",
+		description = "Keep quest and event pets at normal size.(except the Broav)",
 		position = 3
 	)
 	default boolean filterQuestAndEventPets()

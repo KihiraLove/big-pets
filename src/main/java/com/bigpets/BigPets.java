@@ -1,4 +1,4 @@
-package com.petresizer;
+package com.bigpets;
 
 import com.google.inject.Provides;
 import java.util.Collections;
@@ -33,11 +33,11 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.gpu.GpuPlugin;
 
 @PluginDescriptor(
-	name = "Pet Resizer",
-	description = "Resize your follower or all nearby pets without changing clickboxes. Requires RuneLite GPU.",
-	tags = {"pet", "resize", "size", "follower"}
+	name = "Big Pets",
+	description = "Makes pets as big (or as small) as you want. Requires the `GPU` plugin",
+	tags = {"big", "pets", "resize", "size", "follower"}
 )
-public class PetResizer extends Plugin
+public class BigPets extends Plugin
 {
 	private static final int NORMAL_SIZE = 100;
 	private static final int MODEL_SCALE = 128;
@@ -55,12 +55,11 @@ public class PetResizer extends Plugin
 	private ConfigManager configManager;
 
 	@Inject
-	private PetResizerConfig config;
+	private BigPetsConfig config;
 
 	private volatile boolean running;
 	private boolean needsPetScan;
 	private final Set<NPC> pets = Collections.newSetFromMap(new IdentityHashMap<>());
-	// A null value means the pet is hidden at 0%, with no replacement needed.
 	private final Map<NPC, RuneLiteObject> resizedPets = new IdentityHashMap<>();
 
 	private final RenderCallback renderCallback = new RenderCallback()
@@ -68,8 +67,6 @@ public class PetResizer extends Plugin
 		@Override
 		public boolean drawObject(Scene scene, TileObject object)
 		{
-			// Hide only the GPU drawing. addEntity must remain true so the original
-			// NPC model still supplies its normal clickbox and menu entries.
 			return !running || !(object instanceof GameObject)
 				|| !resizedPets.containsKey(((GameObject) object).getRenderable());
 		}
@@ -78,13 +75,12 @@ public class PetResizer extends Plugin
 	@Override
 	protected void startUp()
 	{
-		// Preserve the size setting from the initial project's template group.
-		if (configManager.getConfiguration(PetResizerConfig.GROUP, "petSizePercentage") == null)
+		if (configManager.getConfiguration(BigPetsConfig.GROUP, "petSizePercentage") == null)
 		{
-			String previousSize = configManager.getConfiguration("example", "petSizePercentage");
+			String previousSize = configManager.getConfiguration(BigPetsConfig.GROUP, "petSizePercentage");
 			if (previousSize != null)
 			{
-				configManager.setConfiguration(PetResizerConfig.GROUP, "petSizePercentage", previousSize);
+				configManager.setConfiguration(BigPetsConfig.GROUP, "petSizePercentage", previousSize);
 			}
 		}
 		needsPetScan = true;
@@ -125,8 +121,6 @@ public class PetResizer extends Plugin
 		boolean allPets = config.resizeAllPets();
 		if (allPets && needsPetScan)
 		{
-			// One initial scan catches pets already present when enabling the plugin.
-			// Spawn, despawn and composition events maintain the collection thereafter.
 			scanPets(client.getTopLevelWorldView());
 			needsPetScan = false;
 		}
@@ -177,8 +171,6 @@ public class PetResizer extends Plugin
 			return;
 		}
 
-		// NPC models may share animated vertex buffers. Merge into an independent
-		// model before scaling, never mutate the NPC's model or its composition.
 		Model scaled = client.mergeModels(new Model[]{original});
 		if (scaled == null)
 		{
@@ -286,7 +278,7 @@ public class PetResizer extends Plugin
 
 	private void clearPets()
 	{
-		resizedPets.values().forEach(PetResizer::removeVisual);
+		resizedPets.values().forEach(BigPets::removeVisual);
 		resizedPets.clear();
 	}
 
@@ -300,8 +292,8 @@ public class PetResizer extends Plugin
 	}
 
 	@Provides
-	PetResizerConfig provideConfig(ConfigManager configManager)
+	BigPetsConfig provideConfig(ConfigManager configManager)
 	{
-		return configManager.getConfig(PetResizerConfig.class);
+		return configManager.getConfig(BigPetsConfig.class);
 	}
 }

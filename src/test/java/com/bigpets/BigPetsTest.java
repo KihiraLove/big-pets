@@ -1,13 +1,13 @@
-package com.petresizer;
+package com.bigpets;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
 
-public class PetResizerTest
+public class BigPetsTest
 {
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(PetResizer.class);
+		ExternalPluginManager.loadBuiltin(BigPets.class);
 		RuneLite.main(args);
 	}
 }

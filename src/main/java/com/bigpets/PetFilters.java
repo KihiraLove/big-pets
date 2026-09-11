@@ -1,4 +1,4 @@
-package com.petresizer;
+package com.bigpets;
 
 import java.util.Locale;
 import java.util.Set;
@@ -8,8 +8,7 @@ import net.runelite.api.gameval.NpcID;
 
 final class PetFilters
 {
-	// These new dog breeds do not yet have gameval constants in our RuneLite API.
-	// Exact breed names also cover their colour variants without matching boss pets.
+    // will be changed to gamevals once they are added to RuneLite API
 	private static final Set<String> DOG_BREEDS = Set.of(
 		"labrador", "pug", "spaniel", "chihuahua", "border collie", "corgi",
 		"greyhound", "husky", "samoyed", "bernese mountain dog", "shiba", "yorkie"
@@ -36,8 +35,6 @@ final class PetFilters
 
 	static boolean isQuestOrEventPet(NPC npc)
 	{
-		// Broav is deliberately absent: the categories are explicit, not a general
-		// exclusion of pets obtained through quests (which also include cats/dogs).
 		return isQuestOrEventPet(npc.getId()) || isQuestOrEventPet(compositionId(npc));
 	}
 

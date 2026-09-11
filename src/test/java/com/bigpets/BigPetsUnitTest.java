@@ -1,4 +1,4 @@
-package com.petresizer;
+package com.bigpets;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -41,24 +41,24 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class PetResizerUnitTest
+public class BigPetsUnitTest
 {
 	private final Client client = mock(Client.class);
 	private final ClientThread clientThread = mock(ClientThread.class);
 	private final RenderCallbackManager callbacks = mock(RenderCallbackManager.class);
 	private final ConfigManager configManager = mock(ConfigManager.class);
-	private final PetResizerConfig config = mock(PetResizerConfig.class);
+	private final BigPetsConfig config = mock(BigPetsConfig.class);
 	private final NPC follower = mock(NPC.class);
 	private final Model original = mock(Model.class);
 	private final Model copy = mock(Model.class);
 	private final RuneLiteObject visual = mock(RuneLiteObject.class);
-	private PetResizer plugin;
+	private BigPets plugin;
 	private RenderCallback callback;
 
 	@Before
 	public void setUp()
 	{
-		plugin = new PetResizer();
+		plugin = new BigPets();
 		Guice.createInjector(new AbstractModule()
 		{
 			@Override
@@ -68,7 +68,7 @@ public class PetResizerUnitTest
 				bind(ClientThread.class).toInstance(clientThread);
 				bind(RenderCallbackManager.class).toInstance(callbacks);
 				bind(ConfigManager.class).toInstance(configManager);
-				bind(PetResizerConfig.class).toInstance(config);
+				bind(BigPetsConfig.class).toInstance(config);
 			}
 		}).injectMembers(plugin);
 		when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
@@ -183,7 +183,7 @@ public class PetResizerUnitTest
 	@Test
 	public void allPetsDefaultsToOff()
 	{
-		assertFalse(new PetResizerConfig() {}.resizeAllPets());
+		assertFalse(new BigPetsConfig() {}.resizeAllPets());
 	}
 
 	@Test
@@ -353,7 +353,7 @@ public class PetResizerUnitTest
 	@Test
 	public void filtersDefaultToOff()
 	{
-		PetResizerConfig defaults = new PetResizerConfig() {};
+		BigPetsConfig defaults = new BigPetsConfig() {};
 		assertFalse(defaults.filterCatsAndDogs());
 		assertFalse(defaults.filterQuestAndEventPets());
 	}

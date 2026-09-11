@@ -1,4 +1,4 @@
-package com.petresizer;
+package com.bigpets;
 
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
@@ -23,8 +23,6 @@ final class PetNpcs
 			|| composition != null && isPohPet(composition.getId());
 	}
 
-	// Menagerie variants are not necessarily marked as followers. Keep an
-	// explicit gameval list: POH dungeon monsters and servants are not pets.
 	private static boolean isPohPet(int id)
 	{
 		switch (id)
