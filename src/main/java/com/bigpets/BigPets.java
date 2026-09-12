@@ -12,6 +12,7 @@ import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.Model;
 import net.runelite.api.NPC;
+import net.runelite.api.Renderable;
 import net.runelite.api.RuneLiteObject;
 import net.runelite.api.Scene;
 import net.runelite.api.TileObject;
@@ -23,6 +24,7 @@ import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
+import net.runelite.api.hooks.DrawCallbacks;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
 import net.runelite.client.callback.RenderCallbackManager;
@@ -34,7 +36,7 @@ import net.runelite.client.plugins.gpu.GpuPlugin;
 
 @PluginDescriptor(
 	name = "Big Pets",
-	description = "Makes pets as big (or as small) as you want. Requires the `GPU` plugin",
+	description = "Makes pets as big (or as small) as you want. Requires a GPU renderer",
 	tags = {"big", "pets", "resize", "size", "follower"}
 )
 public class BigPets extends Plugin
@@ -59,6 +61,7 @@ public class BigPets extends Plugin
 
 	private volatile boolean running;
 	private boolean needsPetScan;
+	private PetDrawCallbacks petDrawCallbacks;
 	private final Set<NPC> pets = Collections.newSetFromMap(new IdentityHashMap<>());
 	private final Map<NPC, RuneLiteObject> resizedPets = new IdentityHashMap<>();
 
@@ -67,8 +70,8 @@ public class BigPets extends Plugin
 		@Override
 		public boolean drawObject(Scene scene, TileObject object)
 		{
-			return !running || !(object instanceof GameObject)
-				|| !resizedPets.containsKey(((GameObject) object).getRenderable());
+			return !(object instanceof GameObject)
+				|| !isHiddenPet(((GameObject) object).getRenderable());
 		}
 	};
 
@@ -95,6 +98,7 @@ public class BigPets extends Plugin
 		renderCallbackManager.unregister(renderCallback);
 		clientThread.invokeLater(() ->
 		{
+			restoreDrawCallbacks();
 			clearPets();
 			pets.clear();
 			needsPetScan = true;
@@ -112,11 +116,13 @@ public class BigPets extends Plugin
 		NPC follower = client.getFollower();
 		int percentage = Math.max(0, Math.min(500, config.petSizePercentage()));
 		if (client.getGameState() != GameState.LOGGED_IN
-			|| !(client.getDrawCallbacks() instanceof GpuPlugin) || percentage == NORMAL_SIZE)
+			|| !client.isGpu() || client.getDrawCallbacks() == null || percentage == NORMAL_SIZE)
 		{
+			restoreDrawCallbacks();
 			clearPets();
 			return;
 		}
+		updateDrawCallbacks();
 
 		boolean allPets = config.resizeAllPets();
 		if (allPets && needsPetScan)
@@ -146,6 +152,45 @@ public class BigPets extends Plugin
 		if (follower != null && (!allPets || !pets.contains(follower)))
 		{
 			resizePet(follower, percentage);
+		}
+	}
+
+	private boolean isHiddenPet(Renderable renderable)
+	{
+		// Static scene uploads may call drawObject off-thread. Only NPCs can be
+		// replaced, so those uploads never need to read the client-thread map.
+		return running && renderable instanceof NPC && resizedPets.containsKey(renderable);
+	}
+
+	private void updateDrawCallbacks()
+	{
+		DrawCallbacks current = client.getDrawCallbacks();
+		if (current == petDrawCallbacks)
+		{
+			return;
+		}
+		restoreDrawCallbacks();
+		// The built-in renderer already honors drawObject. Keeping its identity
+		// also preserves compatibility with plugins that explicitly check for it.
+		if (!(current instanceof GpuPlugin))
+		{
+			petDrawCallbacks = new PetDrawCallbacks(client, current, this::isHiddenPet);
+			client.setDrawCallbacks(petDrawCallbacks);
+		}
+	}
+
+	private void restoreDrawCallbacks()
+	{
+		if (petDrawCallbacks != null)
+		{
+			petDrawCallbacks.deactivate();
+			// A renderer may have stopped or installed a new callback since our
+			// last frame. Never restore a stopped renderer over its replacement.
+			if (client.getDrawCallbacks() == petDrawCallbacks)
+			{
+				client.setDrawCallbacks(petDrawCallbacks.getDelegate());
+			}
+			petDrawCallbacks = null;
 		}
 	}
 

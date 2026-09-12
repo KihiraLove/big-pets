@@ -20,6 +20,7 @@ import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.api.gameval.NpcID;
+import net.runelite.api.hooks.DrawCallbacks;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
 import net.runelite.client.callback.RenderCallbackManager;
@@ -30,6 +31,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -72,7 +74,13 @@ public class BigPetsUnitTest
 			}
 		}).injectMembers(plugin);
 		when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+		when(client.isGpu()).thenReturn(true);
 		when(client.getDrawCallbacks()).thenReturn(mock(GpuPlugin.class));
+		doAnswer(invocation ->
+		{
+			when(client.getDrawCallbacks()).thenReturn(invocation.getArgument(0));
+			return null;
+		}).when(client).setDrawCallbacks(any());
 		when(client.getFollower()).thenReturn(follower);
 		when(follower.getWorldView()).thenReturn(mock(WorldView.class));
 		when(follower.getLocalLocation()).thenReturn(new LocalPoint(6400, 6400));
@@ -491,6 +499,93 @@ public class BigPetsUnitTest
 		when(transformed.getId()).thenReturn(NpcID.YAMA_PET);
 		plugin.onBeforeRender(new BeforeRender());
 		assertFalse(draws(follower));
+	}
+
+	@Test
+	public void thirdPartyGpuResizesPetsAndRestoresItsCallbackAtNormalSize()
+	{
+		DrawCallbacks renderer = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(renderer);
+		plugin.onBeforeRender(new BeforeRender());
+		assertTrue(client.getDrawCallbacks() instanceof PetDrawCallbacks);
+		verify(visual).setModel(copy);
+		assertFalse(draws(follower));
+		when(config.petSizePercentage()).thenReturn(100);
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(renderer, client.getDrawCallbacks());
+		assertTrue(draws(follower));
+	}
+
+	@Test
+	public void builtinGpuKeepsItsCallbackIdentity()
+	{
+		DrawCallbacks renderer = client.getDrawCallbacks();
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(renderer, client.getDrawCallbacks());
+		verify(client, never()).setDrawCallbacks(any());
+	}
+
+	@Test
+	public void softwareModeWithACallbackDoesNotResize()
+	{
+		when(client.isGpu()).thenReturn(false);
+		plugin.onBeforeRender(new BeforeRender());
+		verify(client, never()).createRuneLiteObject();
+		verify(client, never()).setDrawCallbacks(any());
+		assertTrue(draws(follower));
+	}
+
+	@Test
+	public void repeatedFramesReuseTheAdapter()
+	{
+		when(client.getDrawCallbacks()).thenReturn(mock(DrawCallbacks.class));
+		plugin.onBeforeRender(new BeforeRender());
+		DrawCallbacks adapter = client.getDrawCallbacks();
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(adapter, client.getDrawCallbacks());
+		verify(client).setDrawCallbacks(adapter);
+	}
+
+	@Test
+	public void switchingRenderersDoesNotRestoreTheOldRenderer()
+	{
+		DrawCallbacks first = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(first);
+		plugin.onBeforeRender(new BeforeRender());
+		DrawCallbacks oldAdapter = client.getDrawCallbacks();
+		DrawCallbacks second = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(second);
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(second, ((PetDrawCallbacks) client.getDrawCallbacks()).getDelegate());
+		oldAdapter.draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(first).draw(null, null, follower, 0, 1, 2, 3, 4L);
+		plugin.shutDown();
+		assertSame(second, client.getDrawCallbacks());
+		verify(client, never()).setDrawCallbacks(first);
+	}
+
+	@Test
+	public void rendererStoppingIsNotUndoneOnShutdown()
+	{
+		DrawCallbacks renderer = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(renderer);
+		plugin.onBeforeRender(new BeforeRender());
+		when(client.getDrawCallbacks()).thenReturn(null);
+		plugin.shutDown();
+		verify(client, never()).setDrawCallbacks(renderer);
+	}
+
+	@Test
+	public void zeroSizeWithLegacyRendererKeepsOriginalPicking()
+	{
+		DrawCallbacks renderer = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(renderer);
+		when(config.petSizePercentage()).thenReturn(0);
+		plugin.onBeforeRender(new BeforeRender());
+		client.getDrawCallbacks().draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(client).checkClickbox(null, original, 0, 1, 2, 3, 4L);
+		verify(renderer, never()).draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(client, never()).createRuneLiteObject();
 	}
 
 	private NPC pet(int id, boolean isFollower)
