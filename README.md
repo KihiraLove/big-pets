@@ -1,5 +1,7 @@
 # Big Pets
-Requires a GPU renderer: built-in **GPU**, **GPU Experimental**, **GPU Legacy**, or **117 HD**.
+Requires a GPU renderer: built-in
+**GPU**, **GPU Experiment
+al**, **GPU Legacy**, or **117 HD**.
 Change the visual size of your currently following pet from **0% to 500%**.
 Normal size is **100%**, **0%** hides the pet's model.
 
@@ -18,3 +20,22 @@ For these three zone renderer use RuneLite's object rendering callback to hide t
 - GPU (Legacy)
 - 117 HD's legacy
 These use a forwarding adapter that skips the original visual but performs click detection with the model.
+
+## Clickboxes
+
+Clickbox size is kept intact
+### Original size
+![clickbox-original.png](assets/clickbox-original.png)
+### With GPU
+![clickbox-gpu.png](assets/clickbox-gpu.png)
+### With GPU (Experimental)
+![clickbox-gpu-experimental.png](assets/clickbox-gpu-experimental.png)
+### With GPU (Legacy)
+![clickbox-gpu-legacy.png](assets/clickbox-gpu-legacy.png)
+### With 177 HD
+![clickbox-117.png](assets/clickbox-117.png)
+### With 117 HD legacy renderer
+![clickbox-117-legacy.png](assets/clickbox-117-legacy.png)
+
+
+
