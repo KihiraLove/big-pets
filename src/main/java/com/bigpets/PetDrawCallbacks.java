@@ -1,6 +1,10 @@
 package com.bigpets;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 import net.runelite.api.Client;
@@ -10,18 +14,12 @@ import net.runelite.api.Renderable;
 import net.runelite.api.Scene;
 import net.runelite.api.hooks.DrawCallbacks;
 
-/**
- * Supplies visual-only hiding for renderers using the legacy draw callback.
- * Modern renderers continue to use RenderCallback.drawObject instead.
- */
-final class PetDrawCallbacks implements DrawCallbacks
+final class PetDrawCallbacks implements DrawCallbacks, Supplier<DrawCallbacks>
 {
 	private final Client client;
 	private final Predicate<Renderable> hidden;
 	private volatile boolean active = true;
 
-	// Lombok generates forwarding methods at compile time, including default methods.
-	// No reflection or dependency on a third-party renderer is needed.
 	@Getter
 	@Delegate
 	private final DrawCallbacks delegate;
@@ -39,6 +37,35 @@ final class PetDrawCallbacks implements DrawCallbacks
 	}
 
 	@Override
+	public DrawCallbacks get()
+	{
+		return delegate;
+	}
+
+	boolean isInstalled(DrawCallbacks current)
+	{
+		if (current == this)
+		{
+			return true;
+		}
+		Set<DrawCallbacks> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+		while (current instanceof Supplier<?> && visited.add(current))
+		{
+			Object next = ((Supplier<?>) current).get();
+			if (next == this)
+			{
+				return true;
+			}
+			if (!(next instanceof DrawCallbacks))
+			{
+				break;
+			}
+			current = (DrawCallbacks) next;
+		}
+		return false;
+	}
+
+	@Override
 	public void draw(Projection projection, Scene scene, Renderable renderable,
 		int orientation, int x, int y, int z, long hash)
 	{
@@ -48,8 +75,6 @@ final class PetDrawCallbacks implements DrawCallbacks
 			return;
 		}
 
-		// Legacy renderers perform picking inside draw(), so skipping their draw
-		// also requires checking the unchanged NPC model's original clickbox here.
 		Model model = renderable.getModel();
 		if (model != null)
 		{

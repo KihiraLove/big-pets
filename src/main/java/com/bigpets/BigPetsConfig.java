@@ -18,7 +18,7 @@ public interface BigPetsConfig extends Config
 	)
 	default int petSizePercentage()
 	{
-		return 100;
+		return 200;
 	}
 
 	@ConfigItem(
@@ -29,7 +29,7 @@ public interface BigPetsConfig extends Config
 	)
 	default boolean resizeAllPets()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(

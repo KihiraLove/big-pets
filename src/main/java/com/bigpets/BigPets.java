@@ -6,6 +6,8 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
@@ -30,13 +32,15 @@ import net.runelite.client.callback.RenderCallback;
 import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.events.PluginMessage;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.gpu.GpuPlugin;
 
 @PluginDescriptor(
 	name = "Big Pets",
-	description = "Makes pets as big (or as small) as you want. Requires a GPU renderer",
+	description = "Makes pets as big (or as small) as you want. Requires a GPU renderer (GPU, 117 HD, GPU(Experimental), GPU (Legacy)",
 	tags = {"big", "pets", "resize", "size", "follower"}
 )
 public class BigPets extends Plugin
@@ -59,9 +63,14 @@ public class BigPets extends Plugin
 	@Inject
 	private BigPetsConfig config;
 
+	@Inject
+	private EventBus eventBus;
+
 	private volatile boolean running;
 	private boolean needsPetScan;
 	private PetDrawCallbacks petDrawCallbacks;
+	private boolean needsVisualRequest;
+	private ExternalPetVisual externalPet;
 	private final Set<NPC> pets = Collections.newSetFromMap(new IdentityHashMap<>());
 	private final Map<NPC, RuneLiteObject> resizedPets = new IdentityHashMap<>();
 
@@ -87,6 +96,7 @@ public class BigPets extends Plugin
 			}
 		}
 		needsPetScan = true;
+		needsVisualRequest = true;
 		running = true;
 		renderCallbackManager.register(renderCallback);
 	}
@@ -100,6 +110,7 @@ public class BigPets extends Plugin
 		{
 			restoreDrawCallbacks();
 			clearPets();
+			clearExternalPet();
 			pets.clear();
 			needsPetScan = true;
 		});
@@ -115,6 +126,12 @@ public class BigPets extends Plugin
 
 		NPC follower = client.getFollower();
 		int percentage = Math.max(0, Math.min(500, config.petSizePercentage()));
+		if (needsVisualRequest)
+		{
+			needsVisualRequest = false;
+			eventBus.post(new PluginMessage("racecar", "request-pet-visual"));
+		}
+		updateExternalPet(percentage);
 		if (client.getGameState() != GameState.LOGGED_IN
 			|| !client.isGpu() || client.getDrawCallbacks() == null || percentage == NORMAL_SIZE)
 		{
@@ -157,21 +174,17 @@ public class BigPets extends Plugin
 
 	private boolean isHiddenPet(Renderable renderable)
 	{
-		// Static scene uploads may call drawObject off-thread. Only NPCs can be
-		// replaced, so those uploads never need to read the client-thread map.
 		return running && renderable instanceof NPC && resizedPets.containsKey(renderable);
 	}
 
 	private void updateDrawCallbacks()
 	{
 		DrawCallbacks current = client.getDrawCallbacks();
-		if (current == petDrawCallbacks)
+		if (petDrawCallbacks != null && petDrawCallbacks.isInstalled(current))
 		{
 			return;
 		}
 		restoreDrawCallbacks();
-		// The built-in renderer already honors drawObject. Keeping its identity
-		// also preserves compatibility with plugins that explicitly check for it.
 		if (!(current instanceof GpuPlugin))
 		{
 			petDrawCallbacks = new PetDrawCallbacks(client, current, this::isHiddenPet);
@@ -184,8 +197,6 @@ public class BigPets extends Plugin
 		if (petDrawCallbacks != null)
 		{
 			petDrawCallbacks.deactivate();
-			// A renderer may have stopped or installed a new callback since our
-			// last frame. Never restore a stopped renderer over its replacement.
 			if (client.getDrawCallbacks() == petDrawCallbacks)
 			{
 				client.setDrawCallbacks(petDrawCallbacks.getDelegate());
@@ -196,8 +207,7 @@ public class BigPets extends Plugin
 
 	private void resizePet(NPC pet, int percentage)
 	{
-		if (config.filterCatsAndDogs() && PetFilters.isCatOrDog(pet)
-			|| config.filterQuestAndEventPets() && PetFilters.isQuestOrEventPet(pet))
+		if (externalPet != null && externalPet.npc == pet || isFiltered(pet))
 		{
 			removeVisual(resizedPets.remove(pet));
 			return;
@@ -238,6 +248,78 @@ public class BigPets extends Plugin
 			resizedPet.setActive(true);
 		}
 		resizedPets.put(pet, resizedPet);
+	}
+
+	@Subscribe
+	public void onPluginMessage(PluginMessage event)
+	{
+		if (!running || !"racecar".equals(event.getNamespace()) || !"pet-visual".equals(event.getName()))
+		{
+			return;
+		}
+		Object npc = event.getData().get("npc");
+		Object setSize = event.getData().get("setSize");
+		Object isActive = event.getData().get("isActive");
+		if (!(npc instanceof NPC) || !(setSize instanceof IntConsumer) || !(isActive instanceof BooleanSupplier))
+		{
+			return;
+		}
+		clientThread.invoke(() ->
+		{
+			if (!running || npc != client.getFollower() || !((BooleanSupplier) isActive).getAsBoolean())
+			{
+				return;
+			}
+			clearExternalPet();
+			externalPet = new ExternalPetVisual((NPC) npc, (IntConsumer) setSize, (BooleanSupplier) isActive);
+			removeVisual(resizedPets.remove(npc));
+			updateExternalPet(Math.max(0, Math.min(500, config.petSizePercentage())));
+		});
+	}
+
+	private boolean isFiltered(NPC pet)
+	{
+		return config.filterCatsAndDogs() && PetFilters.isCatOrDog(pet)
+			|| config.filterQuestAndEventPets() && PetFilters.isQuestOrEventPet(pet);
+	}
+
+	private void updateExternalPet(int percentage)
+	{
+		if (externalPet == null)
+		{
+			return;
+		}
+		if (externalPet.npc != client.getFollower() || !externalPet.isActive.getAsBoolean())
+		{
+			clearExternalPet();
+			return;
+		}
+		boolean resize = client.getGameState() == GameState.LOGGED_IN && client.isGpu()
+			&& client.getDrawCallbacks() != null && !isFiltered(externalPet.npc);
+		externalPet.setSize.accept(resize ? percentage : NORMAL_SIZE);
+	}
+
+	private void clearExternalPet()
+	{
+		if (externalPet != null)
+		{
+			externalPet.setSize.accept(NORMAL_SIZE);
+			externalPet = null;
+		}
+	}
+
+	private static final class ExternalPetVisual
+	{
+		private final NPC npc;
+		private final IntConsumer setSize;
+		private final BooleanSupplier isActive;
+
+		private ExternalPetVisual(NPC npc, IntConsumer setSize, BooleanSupplier isActive)
+		{
+			this.npc = npc;
+			this.setSize = setSize;
+			this.isActive = isActive;
+		}
 	}
 
 	@Subscribe
@@ -316,6 +398,8 @@ public class BigPets extends Plugin
 		if (event.getGameState() != GameState.LOGGED_IN)
 		{
 			clearPets();
+			clearExternalPet();
+			needsVisualRequest = true;
 			pets.clear();
 			needsPetScan = true;
 		}

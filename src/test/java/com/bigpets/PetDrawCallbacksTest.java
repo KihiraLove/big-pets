@@ -1,6 +1,7 @@
 package com.bigpets;
 
 import java.util.Collections;
+import java.util.function.Supplier;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GraphicsObject;
@@ -12,12 +13,15 @@ import net.runelite.api.hooks.DrawCallbacks;
 import org.junit.Test;
 import org.mockito.InOrder;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 public class PetDrawCallbacksTest
 {
@@ -28,6 +32,29 @@ public class PetDrawCallbacksTest
 	private final Scene scene = mock(Scene.class);
 	private final Projection projection = mock(Projection.class);
 	private final PetDrawCallbacks callbacks = new PetDrawCallbacks(client, renderer, r -> r == pet);
+
+	@Test
+	public void findsItselfThroughAnotherPluginsAdapter()
+	{
+		DrawCallbacks outer = mock(DrawCallbacks.class, withSettings().extraInterfaces(Supplier.class));
+		doReturn(callbacks).when((Supplier<?>) outer).get();
+		assertTrue(callbacks.isInstalled(outer));
+		assertTrue(callbacks.isInstalled(callbacks));
+		assertFalse(callbacks.isInstalled(renderer));
+		assertFalse(callbacks.isInstalled(null));
+	}
+
+	@Test
+	public void malformedDelegateChainsDoNotLoopForever()
+	{
+		DrawCallbacks first = mock(DrawCallbacks.class, withSettings().extraInterfaces(Supplier.class));
+		DrawCallbacks second = mock(DrawCallbacks.class, withSettings().extraInterfaces(Supplier.class));
+		doReturn(second).when((Supplier<?>) first).get();
+		doReturn(first).when((Supplier<?>) second).get();
+		assertFalse(callbacks.isInstalled(first));
+		doReturn("unrelated supplier value").when((Supplier<?>) second).get();
+		assertFalse(callbacks.isInstalled(first));
+	}
 
 	@Test
 	public void legacyPickingUsesTheOriginalModelAndFullDrawCoordinates()

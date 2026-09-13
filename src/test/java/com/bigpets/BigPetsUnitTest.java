@@ -3,6 +3,7 @@ package com.bigpets;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import java.util.Arrays;
+import java.util.function.Supplier;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
@@ -35,6 +36,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -42,6 +44,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 public class BigPetsUnitTest
 {
@@ -246,7 +249,6 @@ public class BigPetsUnitTest
 		when(config.resizeAllPets()).thenReturn(true);
 		NPC other = pet(NpcID.POH_YAMA_PET, false);
 		RuneLiteObject otherVisual = mock(RuneLiteObject.class);
-		// Tracked pets are updated before the untracked local follower.
 		when(client.createRuneLiteObject()).thenReturn(otherVisual, visual);
 		plugin.onNpcSpawned(new NpcSpawned(other));
 		plugin.onBeforeRender(new BeforeRender());
@@ -586,6 +588,29 @@ public class BigPetsUnitTest
 		verify(client).checkClickbox(null, original, 0, 1, 2, 3, 4L);
 		verify(renderer, never()).draw(null, null, follower, 0, 1, 2, 3, 4L);
 		verify(client, never()).createRuneLiteObject();
+	}
+
+	@Test
+	public void anotherPluginsWrapperDoesNotCauseRepeatedWrapping()
+	{
+		DrawCallbacks renderer = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(renderer);
+		plugin.onBeforeRender(new BeforeRender());
+		DrawCallbacks adapter = client.getDrawCallbacks();
+		DrawCallbacks outer = mock(DrawCallbacks.class, withSettings().extraInterfaces(Supplier.class));
+		doReturn(adapter).when((Supplier<?>) outer).get();
+		when(client.getDrawCallbacks()).thenReturn(outer);
+		clearInvocations(client);
+		for (int i = 0; i < 100; i++)
+		{
+			plugin.onBeforeRender(new BeforeRender());
+		}
+		assertSame(outer, client.getDrawCallbacks());
+		verify(client, never()).setDrawCallbacks(any());
+		plugin.shutDown();
+		assertSame(outer, client.getDrawCallbacks());
+		adapter.draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(renderer).draw(null, null, follower, 0, 1, 2, 3, 4L);
 	}
 
 	private NPC pet(int id, boolean isFollower)
