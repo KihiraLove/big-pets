@@ -1,9 +1,8 @@
 # Big Pets
-Requires a GPU renderer: built-in
-**GPU**, **GPU Experiment
-al**, **GPU Legacy**, or **117 HD**.
+Requires a GPU renderer: **GPU**, **GPU (Experimental)**, **GPU (Legacy)**, or **117 HD**.
+
 Change the visual size of your currently following pet from **0% to 500%**.
-Normal size is **100%**, **0%** hides the pet's model.
+Regular size is **100%**, **0%** hides the pet's model.
 
 **Options:**
 - **Resize all pets** to apply the same size to other players' followers and POH menagerie pets.
