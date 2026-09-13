@@ -36,6 +36,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.gpu.GpuPlugin;
 
 @PluginDescriptor(
@@ -55,6 +56,9 @@ public class BigPets extends Plugin
 	private ClientThread clientThread;
 
 	@Inject
+	private PluginManager pluginManager;
+
+	@Inject
 	private RenderCallbackManager renderCallbackManager;
 
 	@Inject
@@ -69,6 +73,7 @@ public class BigPets extends Plugin
 	private volatile boolean running;
 	private boolean needsPetScan;
 	private PetDrawCallbacks petDrawCallbacks;
+	private Plugin gpuPlugin;
 	private boolean needsVisualRequest;
 	private ExternalPetVisual externalPet;
 	private final Set<NPC> pets = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -87,6 +92,9 @@ public class BigPets extends Plugin
 	@Override
 	protected void startUp()
 	{
+		gpuPlugin = pluginManager.getPlugins().stream()
+			.filter(plugin -> plugin instanceof GpuPlugin)
+			.findFirst().orElse(null);
 		if (configManager.getConfiguration(BigPetsConfig.GROUP, "petSizePercentage") == null)
 		{
 			String previousSize = configManager.getConfiguration(BigPetsConfig.GROUP, "petSizePercentage");
@@ -180,16 +188,18 @@ public class BigPets extends Plugin
 	private void updateDrawCallbacks()
 	{
 		DrawCallbacks current = client.getDrawCallbacks();
+		if (current instanceof GpuPlugin || gpuPlugin != null && pluginManager.isPluginActive(gpuPlugin))
+		{
+			restoreDrawCallbacks();
+			return;
+		}
 		if (petDrawCallbacks != null && petDrawCallbacks.isInstalled(current))
 		{
 			return;
 		}
 		restoreDrawCallbacks();
-		if (!(current instanceof GpuPlugin))
-		{
-			petDrawCallbacks = new PetDrawCallbacks(client, current, this::isHiddenPet);
-			client.setDrawCallbacks(petDrawCallbacks);
-		}
+		petDrawCallbacks = new PetDrawCallbacks(client, current, this::isHiddenPet);
+		client.setDrawCallbacks(petDrawCallbacks);
 	}
 
 	private void restoreDrawCallbacks()

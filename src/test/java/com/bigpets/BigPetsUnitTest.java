@@ -26,6 +26,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
 import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.gpu.GpuPlugin;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,6 +49,8 @@ import static org.mockito.Mockito.withSettings;
 
 public class BigPetsUnitTest
 {
+	private final PluginManager pluginManager = mock(PluginManager.class);
+	private final GpuPlugin builtin = mock(GpuPlugin.class);
 	private final Client client = mock(Client.class);
 	private final ClientThread clientThread = mock(ClientThread.class);
 	private final RenderCallbackManager callbacks = mock(RenderCallbackManager.class);
@@ -63,6 +66,7 @@ public class BigPetsUnitTest
 	@Before
 	public void setUp()
 	{
+		when(pluginManager.getPlugins()).thenReturn(java.util.Collections.singletonList(builtin));
 		plugin = new BigPets();
 		Guice.createInjector(new AbstractModule()
 		{
@@ -70,6 +74,7 @@ public class BigPetsUnitTest
 			protected void configure()
 			{
 				bind(Client.class).toInstance(client);
+				bind(PluginManager.class).toInstance(pluginManager);
 				bind(ClientThread.class).toInstance(clientThread);
 				bind(RenderCallbackManager.class).toInstance(callbacks);
 				bind(ConfigManager.class).toInstance(configManager);
@@ -192,9 +197,9 @@ public class BigPetsUnitTest
 	}
 
 	@Test
-	public void allPetsDefaultsToOff()
+	public void allPetsDefaultsToOn()
 	{
-		assertFalse(new BigPetsConfig() {}.resizeAllPets());
+		assertTrue(new BigPetsConfig() {}.resizeAllPets());
 	}
 
 	@Test
@@ -516,6 +521,66 @@ public class BigPetsUnitTest
 		plugin.onBeforeRender(new BeforeRender());
 		assertSame(renderer, client.getDrawCallbacks());
 		assertTrue(draws(follower));
+	}
+
+	@Test
+	public void decoratedBuiltinGpuKeepsCallbacksAcrossDecoratorTogglesAndShutdown()
+	{
+		when(pluginManager.isPluginActive(builtin)).thenReturn(true);
+		DrawCallbacks decorated = mock(DrawCallbacks.class);
+		for (DrawCallbacks current : new DrawCallbacks[]{decorated, builtin, decorated})
+		{
+			when(client.getDrawCallbacks()).thenReturn(current);
+			plugin.onBeforeRender(new BeforeRender());
+			assertSame(current, client.getDrawCallbacks());
+			assertFalse(draws(follower));
+		}
+		plugin.shutDown();
+		assertSame(decorated, client.getDrawCallbacks());
+		assertTrue(draws(follower));
+		verify(client, never()).setDrawCallbacks(any());
+	}
+
+	@Test
+	public void builtinActivationRemovesAnAlreadyInstalledAdapter()
+	{
+		DrawCallbacks decorated = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(decorated);
+		plugin.onBeforeRender(new BeforeRender());
+		DrawCallbacks adapter = client.getDrawCallbacks();
+		assertTrue(adapter instanceof PetDrawCallbacks);
+
+		when(pluginManager.isPluginActive(builtin)).thenReturn(true);
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(decorated, client.getDrawCallbacks());
+		assertFalse(draws(follower));
+		adapter.draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(decorated).draw(null, null, follower, 0, 1, 2, 3, 4L);
+	}
+
+	@Test
+	public void switchingBetweenAlternativeAndDecoratedBuiltinPreservesTheCurrentRenderer()
+	{
+		DrawCallbacks alternative = mock(DrawCallbacks.class);
+		when(client.getDrawCallbacks()).thenReturn(alternative);
+		plugin.onBeforeRender(new BeforeRender());
+		DrawCallbacks oldAdapter = client.getDrawCallbacks();
+
+		DrawCallbacks decorated = mock(DrawCallbacks.class);
+		when(pluginManager.isPluginActive(builtin)).thenReturn(true);
+		when(client.getDrawCallbacks()).thenReturn(decorated);
+		clearInvocations(client);
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(decorated, client.getDrawCallbacks());
+		verify(client, never()).setDrawCallbacks(any());
+		oldAdapter.draw(null, null, follower, 0, 1, 2, 3, 4L);
+		verify(alternative).draw(null, null, follower, 0, 1, 2, 3, 4L);
+
+		when(pluginManager.isPluginActive(builtin)).thenReturn(false);
+		when(client.getDrawCallbacks()).thenReturn(alternative);
+		plugin.onBeforeRender(new BeforeRender());
+		assertSame(alternative, ((PetDrawCallbacks) client.getDrawCallbacks()).getDelegate());
+		assertFalse(draws(follower));
 	}
 
 	@Test

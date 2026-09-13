@@ -15,9 +15,11 @@ Requires a renderer plugin, either:
 - Built-in GPU
 - GPU (Experimental)
 - 117 HD
+
 For these three zone renderer use RuneLite's object rendering callback to hide the original visual.
 - GPU (Legacy)
 - 117 HD's legacy
+
 These use a forwarding adapter that skips the original visual but performs click detection with the model.
 
 ## Clickboxes
