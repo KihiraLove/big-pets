@@ -11,7 +11,6 @@ import net.runelite.api.IndexedObjectSet;
 import net.runelite.api.Model;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
-import net.runelite.api.RuneLiteObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.BeforeRender;
@@ -44,6 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -58,8 +58,9 @@ public class BigPetsUnitTest
 	private final BigPetsConfig config = mock(BigPetsConfig.class);
 	private final NPC follower = mock(NPC.class);
 	private final Model original = mock(Model.class);
-	private final Model copy = mock(Model.class);
-	private final RuneLiteObject visual = mock(RuneLiteObject.class);
+	private final PetVisual visual = mock(PetVisual.class);
+	@SuppressWarnings("unchecked")
+	private final java.util.function.Function<NPC, PetVisual> visualFactory = mock(java.util.function.Function.class);
 	private BigPets plugin;
 	private RenderCallback callback;
 
@@ -67,7 +68,14 @@ public class BigPetsUnitTest
 	public void setUp()
 	{
 		when(pluginManager.getPlugins()).thenReturn(java.util.Collections.singletonList(builtin));
-		plugin = new BigPets();
+		plugin = new BigPets()
+		{
+			@Override
+			PetVisual createPetVisual(NPC pet)
+			{
+				return visualFactory.apply(pet);
+			}
+		};
 		Guice.createInjector(new AbstractModule()
 		{
 			@Override
@@ -93,8 +101,7 @@ public class BigPetsUnitTest
 		when(follower.getWorldView()).thenReturn(mock(WorldView.class));
 		when(follower.getLocalLocation()).thenReturn(new LocalPoint(6400, 6400));
 		when(follower.getModel()).thenReturn(original);
-		when(client.mergeModels(any(Model[].class))).thenReturn(copy);
-		when(client.createRuneLiteObject()).thenReturn(visual);
+		when(visualFactory.apply(any(NPC.class))).thenReturn(visual);
 		when(config.petSizePercentage()).thenReturn(200);
 		doAnswer(invocation ->
 		{
@@ -111,9 +118,8 @@ public class BigPetsUnitTest
 	public void scalesOnlyVisualCopyAndKeepsOriginalClickable()
 	{
 		plugin.onBeforeRender(new BeforeRender());
-		verify(copy).scale(256, 256, 256);
+		verify(visual).setSizePercentage(200);
 		verify(original, never()).scale(anyInt(), anyInt(), anyInt());
-		verify(visual).setModel(copy);
 		assertTrue(callback.addEntity(follower, false));
 		assertTrue(callback.addEntity(follower, true));
 		assertFalse(draws(follower));
@@ -125,7 +131,7 @@ public class BigPetsUnitTest
 	{
 		when(config.petSizePercentage()).thenReturn(0);
 		plugin.onBeforeRender(new BeforeRender());
-		verify(client, never()).createRuneLiteObject();
+		verifyNoInteractions(visualFactory);
 		assertFalse(draws(follower));
 		assertTrue(callback.addEntity(follower, false));
 	}
@@ -165,17 +171,17 @@ public class BigPetsUnitTest
 		when(follower.getModel()).thenReturn(null);
 		plugin.onBeforeRender(new BeforeRender());
 		assertTrue(draws(follower));
-		verify(client, never()).createRuneLiteObject();
+		verifyNoInteractions(visualFactory);
 	}
 
 	@Test
-	public void repeatedFramesCopyFreshModelsInsteadOfScalingTheNpc()
+	public void repeatedFramesReuseTheVisualWithoutScalingTheNpc()
 	{
 		plugin.onBeforeRender(new BeforeRender());
 		plugin.onBeforeRender(new BeforeRender());
-		verify(client, times(2)).mergeModels(new Model[]{original});
+		verify(visual, times(2)).setSizePercentage(200);
 		verify(original, never()).scale(anyInt(), anyInt(), anyInt());
-		verify(client).createRuneLiteObject();
+		verify(visualFactory).apply(follower);
 	}
 
 	@Test
@@ -183,7 +189,7 @@ public class BigPetsUnitTest
 	{
 		when(config.petSizePercentage()).thenReturn(900);
 		plugin.onBeforeRender(new BeforeRender());
-		verify(copy).scale(640, 640, 640);
+		verify(visual).setSizePercentage(500);
 	}
 
 	@Test
@@ -230,7 +236,7 @@ public class BigPetsUnitTest
 		plugin.onBeforeRender(new BeforeRender());
 		assertFalse(draws(bossPet));
 		assertFalse(draws(cat));
-		verify(client, times(2)).createRuneLiteObject();
+		verify(visualFactory, times(2)).apply(any(NPC.class));
 	}
 
 	@Test
@@ -253,8 +259,8 @@ public class BigPetsUnitTest
 	{
 		when(config.resizeAllPets()).thenReturn(true);
 		NPC other = pet(NpcID.POH_YAMA_PET, false);
-		RuneLiteObject otherVisual = mock(RuneLiteObject.class);
-		when(client.createRuneLiteObject()).thenReturn(otherVisual, visual);
+		PetVisual otherVisual = mock(PetVisual.class);
+		when(visualFactory.apply(any(NPC.class))).thenReturn(otherVisual, visual);
 		plugin.onNpcSpawned(new NpcSpawned(other));
 		plugin.onBeforeRender(new BeforeRender());
 		when(config.resizeAllPets()).thenReturn(false);
@@ -280,7 +286,7 @@ public class BigPetsUnitTest
 			assertFalse(draws(npc));
 			assertTrue(callback.addEntity(npc, false));
 		}
-		verify(client, never()).createRuneLiteObject();
+		verifyNoInteractions(visualFactory);
 	}
 
 	@Test
@@ -288,8 +294,8 @@ public class BigPetsUnitTest
 	{
 		when(config.resizeAllPets()).thenReturn(true);
 		NPC other = pet(NpcID.YAMA_PET, true);
-		RuneLiteObject otherVisual = mock(RuneLiteObject.class);
-		when(client.createRuneLiteObject()).thenReturn(otherVisual, visual);
+		PetVisual otherVisual = mock(PetVisual.class);
+		when(visualFactory.apply(any(NPC.class))).thenReturn(otherVisual, visual);
 		plugin.onNpcSpawned(new NpcSpawned(other));
 		plugin.onBeforeRender(new BeforeRender());
 		plugin.onNpcDespawned(new NpcDespawned(other));
@@ -447,32 +453,38 @@ public class BigPetsUnitTest
 	}
 
 	@Test
-	public void dogBreedsAndPuppiesAreTrackedAndFilteredWithoutFollowerFlag()
+	public void dogsAreTrackedAndFilteredByIdWithoutFollowerFlagOrName()
 	{
 		when(client.getFollower()).thenReturn(null);
 		when(config.resizeAllPets()).thenReturn(true);
-		LocalPoint location = follower.getLocalLocation();
-		WorldView worldView = follower.getWorldView();
-		for (String breed : new String[]{"Labrador", "Pug", "Spaniel", "Chihuahua",
-			"Border Collie", "Corgi", "Greyhound", "Husky", "Samoyed",
-			"Bernese Mountain Dog", "Shiba", "Yorkie"})
+		for (int id : new int[]{NpcID.LABRADOR_BLACK, NpcID.YORKIE_YELLOW_PUPPY,
+			NpcID.POH_SHEPARD_MERLE, NpcID.POH_SHIBA_WHITE})
 		{
-			for (String name : new String[]{breed, breed + " puppy"})
-			{
-				NPC dog = mock(NPC.class);
-				when(dog.getName()).thenReturn(name);
-				when(dog.getModel()).thenReturn(original);
-				when(dog.getLocalLocation()).thenReturn(location);
-				when(dog.getWorldView()).thenReturn(worldView);
-				plugin.onNpcSpawned(new NpcSpawned(dog));
-				when(config.filterCatsAndDogs()).thenReturn(false);
-				plugin.onBeforeRender(new BeforeRender());
-				assertFalse(name, draws(dog));
-				when(config.filterCatsAndDogs()).thenReturn(true);
-				plugin.onBeforeRender(new BeforeRender());
-				assertTrue(name, draws(dog));
-				plugin.onNpcDespawned(new NpcDespawned(dog));
-			}
+			NPC dog = pet(id, false);
+			plugin.onNpcSpawned(new NpcSpawned(dog));
+			when(config.filterCatsAndDogs()).thenReturn(false);
+			plugin.onBeforeRender(new BeforeRender());
+			assertFalse(draws(dog));
+			when(config.filterCatsAndDogs()).thenReturn(true);
+			plugin.onBeforeRender(new BeforeRender());
+			assertTrue(draws(dog));
+			plugin.onNpcDespawned(new NpcDespawned(dog));
+		}
+	}
+
+	@Test
+	public void shelterAndWanderingDogsAreNotResizedByName()
+	{
+		when(config.resizeAllPets()).thenReturn(true);
+		for (int id : new int[]{NpcID.CORGI_SHELTER, NpcID.HUSKY_WANDER})
+		{
+			NPC dog = pet(id, false);
+			when(dog.getName()).thenReturn(id == NpcID.CORGI_SHELTER ? "Corgi" : "Husky");
+			plugin.onNpcSpawned(new NpcSpawned(dog));
+			plugin.onBeforeRender(new BeforeRender());
+			assertTrue(draws(dog));
+			assertFalse(PetFilters.isDog(dog));
+			verify(dog, never()).getModel();
 		}
 	}
 
@@ -503,6 +515,9 @@ public class BigPetsUnitTest
 		when(transformed.getId()).thenReturn(NpcID.KITTENPET_HELL);
 		plugin.onBeforeRender(new BeforeRender());
 		assertTrue(draws(follower));
+		when(transformed.getId()).thenReturn(NpcID.POH_LABRADOR_BLACK);
+		plugin.onBeforeRender(new BeforeRender());
+		assertTrue(draws(follower));
 		when(transformed.getId()).thenReturn(NpcID.YAMA_PET);
 		plugin.onBeforeRender(new BeforeRender());
 		assertFalse(draws(follower));
@@ -515,7 +530,7 @@ public class BigPetsUnitTest
 		when(client.getDrawCallbacks()).thenReturn(renderer);
 		plugin.onBeforeRender(new BeforeRender());
 		assertTrue(client.getDrawCallbacks() instanceof PetDrawCallbacks);
-		verify(visual).setModel(copy);
+		verify(visual).setSizePercentage(200);
 		assertFalse(draws(follower));
 		when(config.petSizePercentage()).thenReturn(100);
 		plugin.onBeforeRender(new BeforeRender());
@@ -597,7 +612,7 @@ public class BigPetsUnitTest
 	{
 		when(client.isGpu()).thenReturn(false);
 		plugin.onBeforeRender(new BeforeRender());
-		verify(client, never()).createRuneLiteObject();
+		verifyNoInteractions(visualFactory);
 		verify(client, never()).setDrawCallbacks(any());
 		assertTrue(draws(follower));
 	}
@@ -652,7 +667,7 @@ public class BigPetsUnitTest
 		client.getDrawCallbacks().draw(null, null, follower, 0, 1, 2, 3, 4L);
 		verify(client).checkClickbox(null, original, 0, 1, 2, 3, 4L);
 		verify(renderer, never()).draw(null, null, follower, 0, 1, 2, 3, 4L);
-		verify(client, never()).createRuneLiteObject();
+		verifyNoInteractions(visualFactory);
 	}
 
 	@Test

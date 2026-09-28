@@ -11,6 +11,8 @@ Regular size is **100%**, **0%** hides the pet's model.
 
 ## Rendering
 Big Pets draws a resized copy of the pet while retaining the original NPC for its clickbox and right-click menu.
+
+On RuneLite 1.13.0+, the animated model is copied and scaled when each pet is drawn, because the API uses shared temporary models. Dog followers, puppies, and POH dogs are identified using gameval IDs; shelter and wandering dogs are excluded.
 Requires a renderer plugin, either:
 - Built-in GPU
 - GPU (Experimental)

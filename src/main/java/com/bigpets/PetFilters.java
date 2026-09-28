@@ -1,31 +1,18 @@
 package com.bigpets;
 
-import java.util.Locale;
-import java.util.Set;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.gameval.NpcID;
 
 final class PetFilters
 {
-    // will be changed to gamevals once they are added to RuneLite API
-	private static final Set<String> DOG_BREEDS = Set.of(
-		"labrador", "pug", "spaniel", "chihuahua", "border collie", "corgi",
-		"greyhound", "husky", "samoyed", "bernese mountain dog", "shiba", "yorkie"
-	);
-
 	private PetFilters()
 	{
 	}
 
 	static boolean isDog(NPC npc)
 	{
-		String name = name(npc);
-		if (name.endsWith(" puppy"))
-		{
-			name = name.substring(0, name.length() - " puppy".length());
-		}
-		return DOG_BREEDS.contains(name);
+		return isDog(npc.getId()) || isDog(compositionId(npc));
 	}
 
 	static boolean isCatOrDog(NPC npc)
@@ -44,11 +31,122 @@ final class PetFilters
 		return composition == null ? npc.getId() : composition.getId();
 	}
 
-	private static String name(NPC npc)
+	private static boolean isDog(int id)
 	{
-		NPCComposition composition = npc.getTransformedComposition();
-		String name = composition == null ? npc.getName() : composition.getName();
-		return name == null ? "" : name.toLowerCase(Locale.ROOT);
+		switch (id)
+		{
+			case NpcID.LABRADOR_YELLOW:
+			case NpcID.LABRADOR_BROWN:
+			case NpcID.LABRADOR_BLACK:
+			case NpcID.CHIHUAHUA_TAN:
+			case NpcID.CHIHUAHUA_WHITE:
+			case NpcID.CHIHUAHUA_TOASTED:
+			case NpcID.COLLIE_CHOCO:
+			case NpcID.COLLIE_MERLE:
+			case NpcID.COLLIE_BW:
+			case NpcID.CORGI_TAN:
+			case NpcID.CORGI_YELLOW:
+			case NpcID.CORGI_TOASTED:
+			case NpcID.GREYHOUND_TAN:
+			case NpcID.GREYHOUND_GREY:
+			case NpcID.GREYHOUND_CREAM:
+			case NpcID.HUSKY_BW:
+			case NpcID.HUSKY_GREY:
+			case NpcID.HUSKY_CHOCO:
+			case NpcID.PUG_FAWN:
+			case NpcID.PUG_BROWN:
+			case NpcID.PUG_BLACK:
+			case NpcID.SAMOYED_WHITE:
+			case NpcID.SAMOYED_YELLOW:
+			case NpcID.SAMOYED_BLACK:
+			case NpcID.SHEPARD_CHOCO:
+			case NpcID.SHEPARD_MERLE:
+			case NpcID.SHEPARD_TOASTED:
+			case NpcID.SHIBA_TAN:
+			case NpcID.SHIBA_WHITE:
+			case NpcID.SHIBA_TOASTED:
+			case NpcID.SPANIEL_RED:
+			case NpcID.SPANIEL_WHITE:
+			case NpcID.SPANIEL_BLACK:
+			case NpcID.YORKIE_BROWN:
+			case NpcID.YORKIE_WHITE:
+			case NpcID.YORKIE_YELLOW:
+			case NpcID.LABRADOR_YELLOW_PUPPY:
+			case NpcID.LABRADOR_CHOCO_PUPPY:
+			case NpcID.LABRADOR_BLACK_PUPPY:
+			case NpcID.HUSKY_BW_PUPPY:
+			case NpcID.HUSKY_GREY_PUPPY:
+			case NpcID.HUSKY_CHOCO_PUPPY:
+			case NpcID.CHIHUAHUA_TAN_PUPPY:
+			case NpcID.CHIHUAHUA_WHITE_PUPPY:
+			case NpcID.CHIHUAHUA_TOASTED_PUPPY:
+			case NpcID.COLLIE_CHOCO_PUPPY:
+			case NpcID.COLLIE_MERLE_PUPPY:
+			case NpcID.COLLIE_BW_PUPPY:
+			case NpcID.CORGI_TAN_PUPPY:
+			case NpcID.CORGI_YELLOW_PUPPY:
+			case NpcID.CORGI_TOASTED_PUPPY:
+			case NpcID.GREYHOUND_TAN_PUPPY:
+			case NpcID.GREYHOUND_GREY_PUPPY:
+			case NpcID.GREYHOUND_CREAM_PUPPY:
+			case NpcID.PUG_FAWN_PUPPY:
+			case NpcID.PUG_BROWN_PUPPY:
+			case NpcID.PUG_BLACK_PUPPY:
+			case NpcID.SAMOYED_WHITE_PUPPY:
+			case NpcID.SAMOYED_YELLOW_PUPPY:
+			case NpcID.SAMOYED_BLACK_PUPPY:
+			case NpcID.SHEPARD_CHOCO_PUPPY:
+			case NpcID.SHEPARD_MERLE_PUPPY:
+			case NpcID.SHEPARD_TOASTED_PUPPY:
+			case NpcID.SHIBA_TAN_PUPPY:
+			case NpcID.SHIBA_WHITE_PUPPY:
+			case NpcID.SHIBA_TOASTED_PUPPY:
+			case NpcID.SPANIEL_RED_PUPPY:
+			case NpcID.SPANIEL_WHITE_PUPPY:
+			case NpcID.SPANIEL_BLACK_PUPPY:
+			case NpcID.YORKIE_BROWN_PUPPY:
+			case NpcID.YORKIE_WHITE_PUPPY:
+			case NpcID.YORKIE_YELLOW_PUPPY:
+			case NpcID.POH_LABRADOR_YELLOW:
+			case NpcID.POH_LABRADOR_BROWN:
+			case NpcID.POH_LABRADOR_BLACK:
+			case NpcID.POH_CHIHUAHUA_TAN:
+			case NpcID.POH_CHIHUAHUA_WHITE:
+			case NpcID.POH_CHIHUAHUA_TOASTED:
+			case NpcID.POH_COLLIE_CHOCO:
+			case NpcID.POH_COLLIE_MERLE:
+			case NpcID.POH_COLLIE_BW:
+			case NpcID.POH_CORGI_TAN:
+			case NpcID.POH_CORGI_YELLOW:
+			case NpcID.POH_CORGI_TOASTED:
+			case NpcID.POH_GREYHOUND_TAN:
+			case NpcID.POH_GREYHOUND_GREY:
+			case NpcID.POH_GREYHOUND_CREAM:
+			case NpcID.POH_HUSKY_BW:
+			case NpcID.POH_HUSKY_GREY:
+			case NpcID.POH_HUSKY_CHOCO:
+			case NpcID.POH_PUG_FAWN:
+			case NpcID.POH_PUG_BROWN:
+			case NpcID.POH_PUG_BLACK:
+			case NpcID.POH_SAMOYED_WHITE:
+			case NpcID.POH_SAMOYED_YELLOW:
+			case NpcID.POH_SAMOYED_BLACK:
+			case NpcID.POH_SHEPARD_CHOCO:
+			case NpcID.POH_SHEPARD_MERLE:
+			case NpcID.POH_SHEPARD_TOASTED:
+			case NpcID.POH_SHIBA_TAN:
+			case NpcID.POH_SHIBA_WHITE:
+			case NpcID.POH_SHIBA_TOASTED:
+			case NpcID.POH_SPANIEL_RED:
+			case NpcID.POH_SPANIEL_WHITE:
+			case NpcID.POH_SPANIEL_BLACK:
+			case NpcID.POH_YORKIE_BROWN:
+			case NpcID.POH_YORKIE_WHITE:
+			case NpcID.POH_YORKIE_YELLOW:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	private static boolean isCat(int id)

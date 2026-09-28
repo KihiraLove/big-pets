@@ -12,10 +12,8 @@ import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
-import net.runelite.api.Model;
 import net.runelite.api.NPC;
 import net.runelite.api.Renderable;
-import net.runelite.api.RuneLiteObject;
 import net.runelite.api.Scene;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldView;
@@ -47,7 +45,6 @@ import net.runelite.client.plugins.gpu.GpuPlugin;
 public class BigPets extends Plugin
 {
 	private static final int NORMAL_SIZE = 100;
-	private static final int MODEL_SCALE = 128;
 
 	@Inject
 	private Client client;
@@ -77,7 +74,7 @@ public class BigPets extends Plugin
 	private boolean needsVisualRequest;
 	private ExternalPetVisual externalPet;
 	private final Set<NPC> pets = Collections.newSetFromMap(new IdentityHashMap<>());
-	private final Map<NPC, RuneLiteObject> resizedPets = new IdentityHashMap<>();
+	private final Map<NPC, PetVisual> resizedPets = new IdentityHashMap<>();
 
 	private final RenderCallback renderCallback = new RenderCallback()
 	{
@@ -156,10 +153,10 @@ public class BigPets extends Plugin
 			needsPetScan = false;
 		}
 
-		Iterator<Map.Entry<NPC, RuneLiteObject>> iterator = resizedPets.entrySet().iterator();
+		Iterator<Map.Entry<NPC, PetVisual>> iterator = resizedPets.entrySet().iterator();
 		while (iterator.hasNext())
 		{
-			Map.Entry<NPC, RuneLiteObject> entry = iterator.next();
+			Map.Entry<NPC, PetVisual> entry = iterator.next();
 			if (entry.getKey() != follower && (!allPets || !pets.contains(entry.getKey())))
 			{
 				removeVisual(entry.getValue());
@@ -229,28 +226,18 @@ public class BigPets extends Plugin
 			return;
 		}
 
-		Model original = pet.getModel();
-		if (original == null)
+		if (pet.getModel() == null)
 		{
 			removeVisual(resizedPets.remove(pet));
 			return;
 		}
 
-		Model scaled = client.mergeModels(new Model[]{original});
-		if (scaled == null)
-		{
-			removeVisual(resizedPets.remove(pet));
-			return;
-		}
-		int scale = Math.round(MODEL_SCALE * percentage / (float) NORMAL_SIZE);
-		scaled.scale(scale, scale, scale);
-
-		RuneLiteObject resizedPet = resizedPets.get(pet);
+		PetVisual resizedPet = resizedPets.get(pet);
 		if (resizedPet == null)
 		{
-			resizedPet = client.createRuneLiteObject();
+			resizedPet = createPetVisual(pet);
 		}
-		resizedPet.setModel(scaled);
+		resizedPet.setSizePercentage(percentage);
 		resizedPet.setLocation(pet.getLocalLocation(), pet.getWorldView().getPlane());
 		resizedPet.setOrientation(pet.getCurrentOrientation());
 		if (!resizedPet.isActive())
@@ -258,6 +245,11 @@ public class BigPets extends Plugin
 			resizedPet.setActive(true);
 		}
 		resizedPets.put(pet, resizedPet);
+	}
+
+	PetVisual createPetVisual(NPC pet)
+	{
+		return new PetVisual(client, pet);
 	}
 
 	@Subscribe
@@ -383,10 +375,10 @@ public class BigPets extends Plugin
 	public void onWorldViewUnloaded(WorldViewUnloaded event)
 	{
 		pets.removeIf(npc -> npc.getWorldView() == event.getWorldView());
-		Iterator<Map.Entry<NPC, RuneLiteObject>> iterator = resizedPets.entrySet().iterator();
+		Iterator<Map.Entry<NPC, PetVisual>> iterator = resizedPets.entrySet().iterator();
 		while (iterator.hasNext())
 		{
-			Map.Entry<NPC, RuneLiteObject> entry = iterator.next();
+			Map.Entry<NPC, PetVisual> entry = iterator.next();
 			if (entry.getKey().getWorldView() == event.getWorldView())
 			{
 				removeVisual(entry.getValue());
@@ -421,12 +413,11 @@ public class BigPets extends Plugin
 		resizedPets.clear();
 	}
 
-	private static void removeVisual(RuneLiteObject resizedPet)
+	private static void removeVisual(PetVisual resizedPet)
 	{
 		if (resizedPet != null)
 		{
 			resizedPet.setActive(false);
-			resizedPet.setModel(null);
 		}
 	}
 
